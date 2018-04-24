@@ -1,14 +1,20 @@
 package kubectl_test
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/types"
+	"k8s.io/client-go/rest"
 )
 
 func TestKubectl(t *testing.T) {
@@ -76,4 +82,127 @@ func resolveToExecutable(path, message string) string {
 	)
 
 	return realBin
+}
+
+type KubeCtl struct {
+	Path             string
+	ConnectionConfig rest.Config
+
+	args         []string
+	outMatcher   types.GomegaMatcher
+	errMatcher   types.GomegaMatcher
+	outputFormat outputFormat
+}
+
+func (k KubeCtl) run() (io.Reader, io.Reader, error) {
+	if k.Path == "" {
+		k.Path = "kubectl"
+	}
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	runArgs := append(k.connectionArgs(), k.args...)
+
+	if f := k.outputFormat; f != (outputFormat{}) {
+		runArgs = append(runArgs, "-o", fmt.Sprintf("%s=%s", f.format, f.template))
+	}
+
+	cmd := exec.Command(k.Path, runArgs...)
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+
+	err := cmd.Run()
+
+	return stdout, stderr, err
+}
+
+func (k KubeCtl) connectionArgs() []string {
+	connArgs := []string{}
+	if host := k.ConnectionConfig.Host; host != "" {
+		connArgs = []string{"-s", host}
+	}
+	return connArgs
+}
+
+func (k KubeCtl) should(matcher types.GomegaMatcher) {
+	stdoutReader, stderrReader, err := k.run()
+
+	stdout, stderr := toString(stdoutReader), toString(stderrReader)
+
+	if m := k.outMatcher; m != nil {
+		Expect(stdout).To(m)
+	}
+
+	if m := k.errMatcher; m != nil {
+		Expect(stderr).To(m)
+	}
+
+	Expect(err).To(matcher, "---[ stdout ]---\n%s\n---[ stderr ]---\n%s\n----------------\n", stdout, stderr)
+}
+
+func (k KubeCtl) Should(matcher types.GomegaMatcher) {
+	k.should(matcher)
+}
+func (k KubeCtl) To(matcher types.GomegaMatcher) {
+	k.should(matcher)
+}
+
+func (k KubeCtl) ShouldNot(matcher types.GomegaMatcher) {
+	k.should(Not(matcher))
+}
+func (k KubeCtl) NotTo(matcher types.GomegaMatcher) {
+	k.should(Not(matcher))
+}
+
+func (k KubeCtl) ExpectStderrTo(matcher types.GomegaMatcher) KubeCtl {
+	k.errMatcher = matcher
+	return k
+}
+
+func (k KubeCtl) ExpectStdoutTo(matcher types.GomegaMatcher) KubeCtl {
+	k.outMatcher = matcher
+	return k
+}
+
+func (k KubeCtl) WithFormat(f outputFormat) KubeCtl {
+	k.outputFormat = f
+	return k
+}
+
+func (k KubeCtl) WithArgs(args ...string) KubeCtl {
+	k.args = append(k.args, args...)
+	return k
+}
+
+func toString(r io.Reader) string {
+	b, err := ioutil.ReadAll(r)
+	Expect(err).NotTo(HaveOccurred())
+	return string(b)
+}
+
+type outputFormatType string
+
+const (
+	goTemplate outputFormatType = "go-template"
+	jsonPath   outputFormatType = "jsonpath"
+)
+
+type outputFormat struct {
+	format   outputFormatType
+	template string
+}
+
+func GoTemplate(tmpl string) outputFormat {
+	return outputFormat{
+		format:   goTemplate,
+		template: tmpl,
+	}
+}
+
+func JsonPath(tmpl string) outputFormat {
+	return outputFormat{
+		format:   jsonPath,
+		template: tmpl,
+	}
 }
