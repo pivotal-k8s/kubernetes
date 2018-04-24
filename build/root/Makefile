@@ -290,9 +290,27 @@ ifeq ($(PRINT_HELP),y)
 test-cmd:
 	@echo "$$TEST_CMD_HELP_INFO"
 else
-test-cmd: generated_files
+test-cmd: test-cluster-api-integration generated_files
 	hack/make-rules/test-kubeadm-cmd.sh
 	hack/make-rules/test-cmd.sh
+endif
+
+define TEST_CLUSTER_API_INTEGRATION
+# Run the binaries integration tests.
+#
+# This will internally compile some artefacts and run tests against those.
+#
+# Example
+#   make test-cluster-api-integration
+endef
+.PHONY: test-cluster-api-integration
+ifeq ($(PRINT_HELP),y)
+test-cluster-api-integration:
+	@echo "$$TEST_CLUSTER_API_INTEGRATION"
+else
+test-cluster-api-integration:
+	$(MAKE) WHAT="cmd/kube-apiserver cmd/kubectl"
+	go test ./test/test-cluster-api-integration/...
 endif
 
 define CLEAN_HELP_INFO
