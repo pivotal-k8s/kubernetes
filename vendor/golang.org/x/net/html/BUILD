@@ -31,6 +31,7 @@ filegroup(
     srcs = [
         ":package-srcs",
         "//vendor/golang.org/x/net/html/atom:all-srcs",
+        "//vendor/golang.org/x/net/html/charset:all-srcs",
     ],
     tags = ["automanaged"],
     visibility = ["//visibility:public"],

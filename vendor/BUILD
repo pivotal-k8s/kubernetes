@@ -436,6 +436,8 @@ filegroup(
         "//vendor/k8s.io/kube-openapi/pkg/util:all-srcs",
         "//vendor/k8s.io/utils/clock:all-srcs",
         "//vendor/k8s.io/utils/exec:all-srcs",
+        "//vendor/sigs.k8s.io/testing_frameworks/cluster:all-srcs",
+        "//vendor/sigs.k8s.io/testing_frameworks/lightweight:all-srcs",
         "//vendor/vbom.ml/util/sortorder:all-srcs",
     ],
     tags = ["automanaged"],

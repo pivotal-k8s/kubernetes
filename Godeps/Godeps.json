@@ -2306,6 +2306,16 @@
 			"Rev": "d59fa0ac68bb5dd932ee8d24eed631cdd519efc3"
 		},
 		{
+			"ImportPath": "github.com/onsi/gomega/gbytes",
+			"Comment": "v1.0-122-gd59fa0a",
+			"Rev": "d59fa0ac68bb5dd932ee8d24eed631cdd519efc3"
+		},
+		{
+			"ImportPath": "github.com/onsi/gomega/gexec",
+			"Comment": "v1.0-122-gd59fa0a",
+			"Rev": "d59fa0ac68bb5dd932ee8d24eed631cdd519efc3"
+		},
+		{
 			"ImportPath": "github.com/onsi/gomega/gstruct",
 			"Comment": "v1.0-122-gd59fa0a",
 			"Rev": "d59fa0ac68bb5dd932ee8d24eed631cdd519efc3"
@@ -2918,6 +2928,10 @@
 			"Rev": "1c05540f6879653db88113bc4a2b70aec4bd491f"
 		},
 		{
+			"ImportPath": "golang.org/x/net/html/charset",
+			"Rev": "1c05540f6879653db88113bc4a2b70aec4bd491f"
+		},
+		{
 			"ImportPath": "golang.org/x/net/http2",
 			"Rev": "1c05540f6879653db88113bc4a2b70aec4bd491f"
 		},
@@ -2990,11 +3004,35 @@
 			"Rev": "b19bf474d317b857955b12035d2c5acb57ce8b01"
 		},
 		{
+			"ImportPath": "golang.org/x/text/encoding/charmap",
+			"Rev": "b19bf474d317b857955b12035d2c5acb57ce8b01"
+		},
+		{
+			"ImportPath": "golang.org/x/text/encoding/htmlindex",
+			"Rev": "b19bf474d317b857955b12035d2c5acb57ce8b01"
+		},
+		{
 			"ImportPath": "golang.org/x/text/encoding/internal",
 			"Rev": "b19bf474d317b857955b12035d2c5acb57ce8b01"
 		},
 		{
 			"ImportPath": "golang.org/x/text/encoding/internal/identifier",
+			"Rev": "b19bf474d317b857955b12035d2c5acb57ce8b01"
+		},
+		{
+			"ImportPath": "golang.org/x/text/encoding/japanese",
+			"Rev": "b19bf474d317b857955b12035d2c5acb57ce8b01"
+		},
+		{
+			"ImportPath": "golang.org/x/text/encoding/korean",
+			"Rev": "b19bf474d317b857955b12035d2c5acb57ce8b01"
+		},
+		{
+			"ImportPath": "golang.org/x/text/encoding/simplifiedchinese",
+			"Rev": "b19bf474d317b857955b12035d2c5acb57ce8b01"
+		},
+		{
+			"ImportPath": "golang.org/x/text/encoding/traditionalchinese",
 			"Rev": "b19bf474d317b857955b12035d2c5acb57ce8b01"
 		},
 		{
@@ -3363,6 +3401,18 @@
 		{
 			"ImportPath": "k8s.io/utils/exec/testing",
 			"Rev": "aedf551cdb8b0119df3a19c65fde413a13b34997"
+		},
+		{
+			"ImportPath": "sigs.k8s.io/testing_frameworks/cluster",
+			"Rev": "224c3380ef9ed31167ee6cdb2b179e82451b18be"
+		},
+		{
+			"ImportPath": "sigs.k8s.io/testing_frameworks/lightweight",
+			"Rev": "224c3380ef9ed31167ee6cdb2b179e82451b18be"
+		},
+		{
+			"ImportPath": "sigs.k8s.io/testing_frameworks/lightweight/internal",
+			"Rev": "224c3380ef9ed31167ee6cdb2b179e82451b18be"
 		},
 		{
 			"ImportPath": "vbom.ml/util/sortorder",
