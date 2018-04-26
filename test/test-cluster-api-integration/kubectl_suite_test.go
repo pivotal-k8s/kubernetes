@@ -131,14 +131,17 @@ func (k KubeCtl) should(matcher types.GomegaMatcher) {
 	stdout, stderr := toString(stdoutReader), toString(stderrReader)
 
 	if m := k.outMatcher; m != nil {
-		Expect(stdout).To(m)
+		ExpectWithOffset(2, stdout).To(m)
 	}
 
 	if m := k.errMatcher; m != nil {
-		Expect(stderr).To(m)
+		ExpectWithOffset(2, stderr).To(m)
 	}
 
-	Expect(err).To(matcher, "---[ stdout ]---\n%s\n---[ stderr ]---\n%s\n----------------\n", stdout, stderr)
+	ExpectWithOffset(2, err).To(
+		matcher,
+		"---[ stdout ]---\n%s\n---[ stderr ]---\n%s\n----------------\n", stdout, stderr,
+	)
 }
 
 func (k KubeCtl) Should(matcher types.GomegaMatcher) {
@@ -159,10 +162,16 @@ func (k KubeCtl) ExpectStderrTo(matcher types.GomegaMatcher) KubeCtl {
 	k.errMatcher = matcher
 	return k
 }
+func (k KubeCtl) ExpectStderrNotTo(matcher types.GomegaMatcher) KubeCtl {
+	return k.ExpectStderrTo(Not(matcher))
+}
 
 func (k KubeCtl) ExpectStdoutTo(matcher types.GomegaMatcher) KubeCtl {
 	k.outMatcher = matcher
 	return k
+}
+func (k KubeCtl) ExpectStdoutNotTo(matcher types.GomegaMatcher) KubeCtl {
+	return k.ExpectStdoutTo(Not(matcher))
 }
 
 func (k KubeCtl) WithFormat(f outputFormat) KubeCtl {
