@@ -14,7 +14,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
-	"k8s.io/client-go/rest"
+	"sigs.k8s.io/testing_frameworks/cluster"
 )
 
 func TestKubectl(t *testing.T) {
@@ -23,15 +23,19 @@ func TestKubectl(t *testing.T) {
 }
 
 var (
-	etcdPath      string
-	apiServerPath string
-	kubeCtlPath   string
+	kubeCtl       KubeCtl
+	clusterConfig cluster.Config
+	configCleanup configCleaner
+	configUpdate  configUpdater
 )
 
 var _ = BeforeSuite(func() {
-	etcdPath = getEtcdPath()
-	apiServerPath = getK8sPath("kube-apiserver")
-	kubeCtlPath = getK8sPath("kubectl")
+	kubeCtl, configUpdate, configCleanup = createTestEnvironment()
+	clusterConfig = getClusterConfig()
+})
+
+var _ = AfterSuite(func() {
+	configCleanup()
 })
 
 func getK8sPath(name string) string {
@@ -84,9 +88,64 @@ func resolveToExecutable(path, message string) string {
 	return realBin
 }
 
+func getClusterConfig() cluster.Config {
+	// admissionPluginsEnabled := "Initializers,LimitRanger,ResourceQuota"
+	// admissionPluginsDisabled := "ServiceAccount,PersistentVolumeLabel,DefaultStorageClass,DefaultTolerationSeconds,MutatingAdmissionWebhook,ValidatingAdmissionWebhook"
+	admissionPluginsDisabled := "ServiceAccount"
+
+	clusterConfig := cluster.Config{}
+	clusterConfig.APIServerExtraArgs = map[string]string{
+		// This will get a bit nicer as soon as
+		// https://github.com/kubernetes-sigs/testing_frameworks/pull/41 is
+		// merged
+		"--etcd-servers":              "{{ if .EtcdURL }}{{ .EtcdURL.String }}{{ end }}",
+		"--cert-dir":                  "{{ .CertDir }}",
+		"--insecure-port":             "{{ if .URL }}{{ .URL.Port }}{{ end }}",
+		"--insecure-bind-address":     "{{ if .URL }}{{ .URL.Hostname }}{{ end }}",
+		"--secure-port":               "0",
+		"--disable-admission-plugins": admissionPluginsDisabled,
+	}
+	clusterConfig.APIServerProcessConfig.Path = getK8sPath("kube-apiserver")
+	clusterConfig.Etcd.ProcessConfig.Path = getEtcdPath()
+
+	return clusterConfig
+}
+
+type configCleaner func()
+type configUpdater func(f cluster.Fixture)
+
+func createTestEnvironment() (KubeCtl, configUpdater, configCleaner) {
+	contextName := "test"
+	clusterName := "test_cluster"
+
+	tmpFile, err := ioutil.TempFile("", "test_kube_conf_")
+	Expect(err).NotTo(HaveOccurred())
+	kubeConfigPath := tmpFile.Name()
+	Expect(tmpFile.Close()).To(Succeed())
+
+	k := KubeCtl{
+		Path:       getK8sPath("kubectl"),
+		KubeConfig: kubeConfigPath,
+	}
+	k.WithArgs("config", "set-context", contextName, "--cluster="+clusterName).Should(Succeed())
+	k.WithArgs("config", "use-context", contextName).Should(Succeed())
+
+	updater := func(f cluster.Fixture) {
+		// TODO extend when Fixture.ClientConfig() returns a rest.Config or such
+		server := f.ClientConfig().String()
+		k.WithArgs("config", "set-cluster", clusterName, "--server="+server).Should(Succeed())
+	}
+
+	cleaner := func() {
+		Expect(os.RemoveAll(kubeConfigPath)).To(Succeed())
+	}
+
+	return k, updater, cleaner
+}
+
 type KubeCtl struct {
-	Path             string
-	ConnectionConfig rest.Config
+	Path       string
+	KubeConfig string
 
 	args         []string
 	outMatcher   types.GomegaMatcher
@@ -119,8 +178,8 @@ func (k KubeCtl) run() (io.Reader, io.Reader, error) {
 
 func (k KubeCtl) connectionArgs() []string {
 	connArgs := []string{}
-	if host := k.ConnectionConfig.Host; host != "" {
-		connArgs = []string{"-s", host}
+	if c := k.KubeConfig; c != "" {
+		connArgs = []string{"--kubeconfig", c}
 	}
 	return connArgs
 }
