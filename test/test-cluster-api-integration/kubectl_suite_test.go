@@ -5,16 +5,23 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 	"sigs.k8s.io/testing_frameworks/cluster"
+)
+
+const (
+	CONTEXT = "test"
+	CLUSTER = "test_cluser"
 )
 
 func TestKubectl(t *testing.T) {
@@ -115,9 +122,6 @@ type configCleaner func()
 type configUpdater func(f cluster.Fixture)
 
 func createTestEnvironment() (KubeCtl, configUpdater, configCleaner) {
-	contextName := "test"
-	clusterName := "test_cluster"
-
 	tmpFile, err := ioutil.TempFile("", "test_kube_conf_")
 	Expect(err).NotTo(HaveOccurred())
 	kubeConfigPath := tmpFile.Name()
@@ -127,13 +131,13 @@ func createTestEnvironment() (KubeCtl, configUpdater, configCleaner) {
 		Path:       getK8sPath("kubectl"),
 		KubeConfig: kubeConfigPath,
 	}
-	k.WithArgs("config", "set-context", contextName, "--cluster="+clusterName).Should(Succeed())
-	k.WithArgs("config", "use-context", contextName).Should(Succeed())
+	k.WithArgs("config", "set-context", CONTEXT, "--cluster", CLUSTER).Should(Succeed())
+	k.WithArgs("config", "use-context", CONTEXT).Should(Succeed())
 
 	updater := func(f cluster.Fixture) {
 		// TODO extend when Fixture.ClientConfig() returns a rest.Config or such
 		server := f.ClientConfig().String()
-		k.WithArgs("config", "set-cluster", clusterName, "--server="+server).Should(Succeed())
+		k.WithArgs("config", "set-cluster", CLUSTER, "--server", server).Should(Succeed())
 	}
 
 	cleaner := func() {
@@ -151,6 +155,7 @@ type KubeCtl struct {
 	outMatcher   types.GomegaMatcher
 	errMatcher   types.GomegaMatcher
 	outputFormat outputFormat
+	namespace    string
 }
 
 func (k KubeCtl) run() (io.Reader, io.Reader, error) {
@@ -162,6 +167,10 @@ func (k KubeCtl) run() (io.Reader, io.Reader, error) {
 	stderr := &bytes.Buffer{}
 
 	runArgs := append(k.connectionArgs(), k.args...)
+
+	if k.namespace != "" {
+		runArgs = append(runArgs, "--namespace", k.namespace)
+	}
 
 	if f := k.outputFormat; f != (outputFormat{}) {
 		runArgs = append(runArgs, "-o", fmt.Sprintf("%s=%s", f.format, f.template))
@@ -273,4 +282,55 @@ func JsonPath(tmpl string) outputFormat {
 		format:   jsonPath,
 		template: tmpl,
 	}
+}
+
+type Namespace struct {
+	Name       string
+	AutoCreate bool
+}
+
+func (k KubeCtl) WithNamespace(ns Namespace) KubeCtl {
+	if ns.Name == "" {
+		ns.Name = createRandomNamespaceName()
+	}
+
+	if ns.AutoCreate {
+		out, _, _ := k.WithArgs("get", "namespace", ns.Name, "-o", "yaml").run()
+		if toString(out) == "" {
+			k.WithArgs("create", "namespace", ns.Name).Should(Succeed())
+		}
+	}
+
+	k.namespace = ns.Name
+
+	return k
+}
+
+func createRandomNamespaceName() string {
+	allowedChars := []rune("abcdefghijklmnopqrstuvwxyz0123456789")
+	postfix := randomString(5, allowedChars...)
+	timestamp := time.Now().UnixNano()
+	namespace := fmt.Sprintf("%s-%d-%s", "namespace", timestamp, postfix)
+	return namespace
+}
+
+func createAndUseNamespace() string {
+	namespace := createRandomNamespaceName()
+
+	kubeCtl.WithArgs("create", "namespace", namespace).Should(Succeed())
+	kubeCtl.WithArgs("config", "set-context", CONTEXT, "--namespace", namespace).Should(Succeed())
+
+	return namespace
+}
+
+func randomString(n int, allowedChars ...rune) string {
+	if len(allowedChars) == 0 {
+		allowedChars = []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
+	}
+
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = allowedChars[rand.Intn(len(allowedChars))]
+	}
+	return string(b)
 }

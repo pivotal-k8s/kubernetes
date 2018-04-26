@@ -31,4 +31,11 @@ var _ = Describe("KubectlIntegration", func() {
 			ExpectStderrTo(BeEmpty()).
 			Should(Succeed())
 	})
+
+	It("can create, use and default to namespaces", func() {
+		createAndUseNamespace()
+		kubeCtl.
+			WithNamespace(Namespace{AutoCreate: true}).
+			WithArgs("get", "namespace").To(Succeed())
+	})
 })
