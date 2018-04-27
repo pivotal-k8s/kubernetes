@@ -23,19 +23,91 @@ var _ = Describe("KubectlIntegration", func() {
 		Expect(fixture.TearDown()).To(Succeed())
 	})
 
-	It("can run 'get pods'", func() {
-		kubeCtl.
-			WithArgs("get", "pods").
-			WithFormat(GoTemplate("{{.Id}}")).
-			ExpectStdoutTo(Equal("<no value>")).
-			ExpectStderrTo(BeEmpty()).
-			Should(Succeed())
-	})
+	Context("CRD Tests", func() {
+		var ns string
 
-	It("can create, use and default to namespaces", func() {
-		createAndUseNamespace()
-		kubeCtl.
-			WithNamespace(Namespace{AutoCreate: true}).
-			WithArgs("get", "namespace").To(Succeed())
+		BeforeEach(func() {
+			ns = createAndUseNamespace()
+		})
+		AfterEach(func() {
+			kubeCtl.WithArgs("delete", "namespace", ns).Should(Succeed())
+		})
+
+		It("can create multiple crds", func() {
+			kubeCtl.Create(crdFooSpec)
+			kubeCtl.
+				WithArgs("get", "customresourcedefinitions").
+				WithFormat(GoTemplate("{{range.items}}{{.metadata.name}}:{{end}}")).
+				ExpectStdoutTo(Equal("foos.company.com:")).
+				Should(Succeed())
+
+			kubeCtl.Create(crdBarSpec)
+			kubeCtl.
+				WithArgs("get", "customresourcedefinitions").
+				WithFormat(GoTemplate("{{range.items}}{{.metadata.name}}:{{end}}")).
+				ExpectStdoutTo(Equal("bars.company.com:foos.company.com:")).
+				Should(Succeed())
+
+			kubeCtl.Create(crdResourcesSpec)
+			kubeCtl.
+				WithArgs("get", "customresourcedefinitions").
+				WithFormat(GoTemplate("{{range.items}}{{.metadata.name}}:{{end}}")).
+				ExpectStdoutTo(Equal("bars.company.com:foos.company.com:resources.mygroup.example.com:")).
+				Should(Succeed())
+		})
 	})
 })
+
+var crdFooSpec = `
+{
+  "kind": "CustomResourceDefinition",
+  "apiVersion": "apiextensions.k8s.io/v1beta1",
+  "metadata": {
+    "name": "foos.company.com"
+  },
+  "spec": {
+    "group": "company.com",
+    "version": "v1",
+    "names": {
+      "plural": "foos",
+      "kind": "Foo"
+    }
+  }
+}`
+
+var crdBarSpec = `
+{
+  "kind": "CustomResourceDefinition",
+  "apiVersion": "apiextensions.k8s.io/v1beta1",
+  "metadata": {
+    "name": "bars.company.com"
+  },
+  "spec": {
+    "group": "company.com",
+    "version": "v1",
+    "names": {
+      "plural": "bars",
+      "kind": "Bar"
+    }
+  }
+}`
+
+var crdResourcesSpec = `
+{
+  "kind": "CustomResourceDefinition",
+  "apiVersion": "apiextensions.k8s.io/v1beta1",
+  "metadata": {
+    "name": "resources.mygroup.example.com"
+  },
+  "spec": {
+    "group": "mygroup.example.com",
+    "version": "v1alpha1",
+    "scope": "Namespaced",
+    "names": {
+      "plural": "resources",
+      "singular": "resource",
+      "kind": "Kind",
+      "listKind": "KindList"
+    }
+  }
+}`

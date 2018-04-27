@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -99,6 +100,7 @@ func getClusterConfig() cluster.Config {
 	// admissionPluginsEnabled := "Initializers,LimitRanger,ResourceQuota"
 	// admissionPluginsDisabled := "ServiceAccount,PersistentVolumeLabel,DefaultStorageClass,DefaultTolerationSeconds,MutatingAdmissionWebhook,ValidatingAdmissionWebhook"
 	admissionPluginsDisabled := "ServiceAccount"
+	admissionPluginsEnabled := "Initializers"
 
 	clusterConfig := cluster.Config{}
 	clusterConfig.APIServerExtraArgs = map[string]string{
@@ -111,6 +113,7 @@ func getClusterConfig() cluster.Config {
 		"--insecure-bind-address":     "{{ if .URL }}{{ .URL.Hostname }}{{ end }}",
 		"--secure-port":               "0",
 		"--disable-admission-plugins": admissionPluginsDisabled,
+		"--enable-admission-plugins":  admissionPluginsEnabled,
 	}
 	clusterConfig.APIServerProcessConfig.Path = getK8sPath("kube-apiserver")
 	clusterConfig.Etcd.ProcessConfig.Path = getEtcdPath()
@@ -156,6 +159,7 @@ type KubeCtl struct {
 	errMatcher   types.GomegaMatcher
 	outputFormat outputFormat
 	namespace    string
+	stdin        io.Reader
 }
 
 func (k KubeCtl) run() (io.Reader, io.Reader, error) {
@@ -179,6 +183,10 @@ func (k KubeCtl) run() (io.Reader, io.Reader, error) {
 	cmd := exec.Command(k.Path, runArgs...)
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
+
+	if k.stdin != nil {
+		cmd.Stdin = k.stdin
+	}
 
 	err := cmd.Run()
 
@@ -249,6 +257,18 @@ func (k KubeCtl) WithFormat(f outputFormat) KubeCtl {
 
 func (k KubeCtl) WithArgs(args ...string) KubeCtl {
 	k.args = append(k.args, args...)
+	return k
+}
+
+func (k KubeCtl) WithStdin(s io.Reader) KubeCtl {
+	k.stdin = s
+	return k
+}
+
+func (k KubeCtl) Create(spec string) KubeCtl {
+	k.WithStdin(strings.NewReader(spec)).
+		WithArgs("create", "-f", "-").
+		Should(Succeed())
 	return k
 }
 
