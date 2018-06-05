@@ -45,6 +45,7 @@ go_test(
     deps = [
         "//pkg/cloudprovider:go_default_library",
         "//pkg/cloudprovider/providers/vsphere/vclib:go_default_library",
+        "//pkg/cloudprovider/providers/vsphere/vclib/fixtures:go_default_library",
         "//pkg/controller:go_default_library",
         "//vendor/github.com/vmware/govmomi/lookup/simulator:go_default_library",
         "//vendor/github.com/vmware/govmomi/simulator:go_default_library",
