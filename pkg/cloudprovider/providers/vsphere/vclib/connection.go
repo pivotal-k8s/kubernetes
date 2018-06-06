@@ -18,14 +18,18 @@ package vclib
 
 import (
 	"context"
+	"crypto/sha1"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
 	neturl "net/url"
+	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/golang/glog"
@@ -180,6 +184,56 @@ func (connection *VSphereConnection) ConfigureTransportWithCA(transport http.Rou
 	return nil
 }
 
+func thumbprintsMatch(expected, actual string) bool {
+	re := regexp.MustCompile(":+")
+	cleanup := func(dirty string) string {
+		return re.ReplaceAllLiteralString(
+			strings.ToLower(dirty),
+			"",
+		)
+	}
+
+	expectedClean, actualClean := cleanup(expected), cleanup(actual)
+
+	return expectedClean == actualClean
+}
+
+func (connection *VSphereConnection) ConfigureThumbprintDialer(transport http.RoundTripper) error {
+	// stealing from https://github.com/dhiltgen/golang-tofu/blob/master/tofu.go
+
+	httpTransport, ok := transport.(*http.Transport)
+	if !ok {
+		panic("nooooo")
+	}
+	orgDialer := httpTransport.DialTLS
+
+	// We can, actually need to, disable verification, as we do this ourselves.
+	// TODO:
+	//   - Do we want to check the validity time(s) still?
+	//   - ... for all certs in the chain or just for the leaf?
+	httpTransport.TLSClientConfig.InsecureSkipVerify = true
+
+	dial := func(network, addr string) (net.Conn, error) {
+		conn, err := orgDialer(network, addr)
+		if err != nil {
+			return nil, err
+		}
+		tlsConn := conn.(*tls.Conn)
+		state := tlsConn.ConnectionState()
+		serverLeafCert := state.PeerCertificates[0]
+		serverLeafThumbprint := fmt.Sprintf("%x", sha1.Sum(serverLeafCert.Raw))
+		if !thumbprintsMatch(connection.Thumbprint, serverLeafThumbprint) {
+			tlsConn.Close()
+			return nil, errors.New("Server's leaf certificate does not match the expected thumbprint -- expected: " + connection.Thumbprint + ", actual: " + serverLeafThumbprint)
+		}
+		return tlsConn, nil
+	}
+
+	httpTransport.DialTLS = dial
+
+	return nil
+}
+
 // NewClient creates a new govmomi client for the VSphereConnection obj
 func (connection *VSphereConnection) NewClient(ctx context.Context) (*vim25.Client, error) {
 	url, err := soap.ParseURL(net.JoinHostPort(connection.Hostname, connection.Port))
@@ -189,6 +243,12 @@ func (connection *VSphereConnection) NewClient(ctx context.Context) (*vim25.Clie
 	}
 
 	sc := soap.NewClient(url, connection.Insecure)
+
+	if connection.Thumbprint != "" {
+		if err := connection.ConfigureThumbprintDialer(sc.Client.Transport); err != nil {
+			return nil, err
+		}
+	}
 
 	if connection.CACert != "" {
 		if err := connection.ConfigureTransportWithCA(sc.Client.Transport); err != nil {
