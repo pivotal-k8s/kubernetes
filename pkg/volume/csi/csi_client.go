@@ -85,21 +85,8 @@ func (c *csiDriverClient) NodeGetInfo(ctx context.Context) (
 	maxVolumePerNode int64,
 	accessibleTopology *csipb.Topology,
 	err error) {
-	glog.V(4).Info(log("calling NodeGetInfo rpc"))
 
-	conn, err := newGrpcConn(c.driverName)
-	if err != nil {
-		return "", 0, nil, err
-	}
-	defer conn.Close()
-	nodeClient := csipb.NewNodeClient(conn)
-
-	res, err := nodeClient.NodeGetInfo(ctx, &csipb.NodeGetInfoRequest{})
-	if err != nil {
-		return "", 0, nil, err
-	}
-
-	return res.GetNodeId(), res.GetMaxVolumesPerNode(), res.GetAccessibleTopology(), nil
+	return "", 0, &csipb.Topology{}, errors.New("NOOOO")
 }
 
 func (c *csiDriverClient) NodePublishVolume(
@@ -114,77 +101,12 @@ func (c *csiDriverClient) NodePublishVolume(
 	nodePublishSecrets map[string]string,
 	fsType string,
 ) error {
-	glog.V(4).Info(log("calling NodePublishVolume rpc [volid=%s,target_path=%s]", volID, targetPath))
-	if volID == "" {
-		return errors.New("missing volume id")
-	}
-	if targetPath == "" {
-		return errors.New("missing target path")
-	}
-
-	conn, err := newGrpcConn(c.driverName)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-	nodeClient := csipb.NewNodeClient(conn)
-
-	req := &csipb.NodePublishVolumeRequest{
-		VolumeId:           volID,
-		TargetPath:         targetPath,
-		Readonly:           readOnly,
-		PublishInfo:        volumeInfo,
-		VolumeAttributes:   volumeAttribs,
-		NodePublishSecrets: nodePublishSecrets,
-		VolumeCapability: &csipb.VolumeCapability{
-			AccessMode: &csipb.VolumeCapability_AccessMode{
-				Mode: asCSIAccessMode(accessMode),
-			},
-		},
-	}
-	if stagingTargetPath != "" {
-		req.StagingTargetPath = stagingTargetPath
-	}
-
-	if fsType == fsTypeBlockName {
-		req.VolumeCapability.AccessType = &csipb.VolumeCapability_Block{
-			Block: &csipb.VolumeCapability_BlockVolume{},
-		}
-	} else {
-		req.VolumeCapability.AccessType = &csipb.VolumeCapability_Mount{
-			Mount: &csipb.VolumeCapability_MountVolume{
-				FsType: fsType,
-			},
-		}
-	}
-
-	_, err = nodeClient.NodePublishVolume(ctx, req)
-	return err
+	return nil
 }
 
 func (c *csiDriverClient) NodeUnpublishVolume(ctx context.Context, volID string, targetPath string) error {
-	glog.V(4).Info(log("calling NodeUnpublishVolume rpc: [volid=%s, target_path=%s", volID, targetPath))
-	if volID == "" {
-		return errors.New("missing volume id")
-	}
-	if targetPath == "" {
-		return errors.New("missing target path")
-	}
 
-	conn, err := newGrpcConn(c.driverName)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-	nodeClient := csipb.NewNodeClient(conn)
-
-	req := &csipb.NodeUnpublishVolumeRequest{
-		VolumeId:   volID,
-		TargetPath: targetPath,
-	}
-
-	_, err = nodeClient.NodeUnpublishVolume(ctx, req)
-	return err
+	return nil
 }
 
 func (c *csiDriverClient) NodeStageVolume(ctx context.Context,
@@ -196,72 +118,13 @@ func (c *csiDriverClient) NodeStageVolume(ctx context.Context,
 	nodeStageSecrets map[string]string,
 	volumeAttribs map[string]string,
 ) error {
-	glog.V(4).Info(log("calling NodeStageVolume rpc [volid=%s,staging_target_path=%s]", volID, stagingTargetPath))
-	if volID == "" {
-		return errors.New("missing volume id")
-	}
-	if stagingTargetPath == "" {
-		return errors.New("missing staging target path")
-	}
 
-	conn, err := newGrpcConn(c.driverName)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-	nodeClient := csipb.NewNodeClient(conn)
-
-	req := &csipb.NodeStageVolumeRequest{
-		VolumeId:          volID,
-		PublishInfo:       publishInfo,
-		StagingTargetPath: stagingTargetPath,
-		VolumeCapability: &csipb.VolumeCapability{
-			AccessMode: &csipb.VolumeCapability_AccessMode{
-				Mode: asCSIAccessMode(accessMode),
-			},
-		},
-		NodeStageSecrets: nodeStageSecrets,
-		VolumeAttributes: volumeAttribs,
-	}
-
-	if fsType == fsTypeBlockName {
-		req.VolumeCapability.AccessType = &csipb.VolumeCapability_Block{
-			Block: &csipb.VolumeCapability_BlockVolume{},
-		}
-	} else {
-		req.VolumeCapability.AccessType = &csipb.VolumeCapability_Mount{
-			Mount: &csipb.VolumeCapability_MountVolume{
-				FsType: fsType,
-			},
-		}
-	}
-
-	_, err = nodeClient.NodeStageVolume(ctx, req)
-	return err
+	return nil
 }
 
 func (c *csiDriverClient) NodeUnstageVolume(ctx context.Context, volID, stagingTargetPath string) error {
-	glog.V(4).Info(log("calling NodeUnstageVolume rpc [volid=%s,staging_target_path=%s]", volID, stagingTargetPath))
-	if volID == "" {
-		return errors.New("missing volume id")
-	}
-	if stagingTargetPath == "" {
-		return errors.New("missing staging target path")
-	}
 
-	conn, err := newGrpcConn(c.driverName)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-	nodeClient := csipb.NewNodeClient(conn)
-
-	req := &csipb.NodeUnstageVolumeRequest{
-		VolumeId:          volID,
-		StagingTargetPath: stagingTargetPath,
-	}
-	_, err = nodeClient.NodeUnstageVolume(ctx, req)
-	return err
+	return nil
 }
 
 func (c *csiDriverClient) NodeGetCapabilities(ctx context.Context) ([]*csipb.NodeServiceCapability, error) {
