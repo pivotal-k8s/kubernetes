@@ -38,7 +38,7 @@ import (
 )
 
 // create a plugin mgr to load plugins and setup a fake client
-func newTestPlugin(t *testing.T, client *fakeclient.Clientset, csiClient *fakecsi.Clientset) (*csiPlugin, string) {
+func newTestPlugin(t *testing.T, client *fakeclient.Clientset, csiClient *fakecsi.Clientset) (*CSIPlugin, string) {
 	err := utilfeature.DefaultFeatureGate.Set("CSIBlockVolume=true")
 	if err != nil {
 		t.Fatalf("Failed to enable feature gate for CSIBlockVolume: %v", err)
@@ -65,14 +65,14 @@ func newTestPlugin(t *testing.T, client *fakeclient.Clientset, csiClient *fakecs
 	plugMgr := &volume.VolumePluginMgr{}
 	plugMgr.InitPlugins(ProbeVolumePlugins(), nil /* prober */, host)
 
-	plug, err := plugMgr.FindPluginByName(csiPluginName)
+	plug, err := plugMgr.FindPluginByName(PluginName)
 	if err != nil {
-		t.Fatalf("can't find plugin %v", csiPluginName)
+		t.Fatalf("can't find plugin %v", PluginName)
 	}
 
-	csiPlug, ok := plug.(*csiPlugin)
+	csiPlug, ok := plug.(*CSIPlugin)
 	if !ok {
-		t.Fatalf("cannot assert plugin to be type csiPlugin")
+		t.Fatalf("cannot assert plugin to be type CSIPlugin")
 	}
 
 	if utilfeature.DefaultFeatureGate.Enabled(features.CSIDriverRegistry) {

@@ -71,12 +71,16 @@ type csiClient interface {
 type csiDriverClient struct {
 	driverName string
 	nodeClient csipb.NodeClient
+	drivers    *csiDriversStore
 }
 
 var _ csiClient = &csiDriverClient{}
 
-func newCsiDriverClient(driverName string) *csiDriverClient {
-	c := &csiDriverClient{driverName: driverName}
+func newCsiDriverClient(drivers *csiDriversStore, driverName string) *csiDriverClient {
+	c := &csiDriverClient{
+		driverName: driverName,
+		drivers:    drivers,
+	}
 	return c
 }
 
@@ -87,7 +91,7 @@ func (c *csiDriverClient) NodeGetInfo(ctx context.Context) (
 	err error) {
 	glog.V(4).Info(log("calling NodeGetInfo rpc"))
 
-	conn, err := newGrpcConn(c.driverName)
+	conn, err := c.newGrpcConn()
 	if err != nil {
 		return "", 0, nil, err
 	}
@@ -122,7 +126,7 @@ func (c *csiDriverClient) NodePublishVolume(
 		return errors.New("missing target path")
 	}
 
-	conn, err := newGrpcConn(c.driverName)
+	conn, err := c.newGrpcConn()
 	if err != nil {
 		return err
 	}
@@ -171,7 +175,7 @@ func (c *csiDriverClient) NodeUnpublishVolume(ctx context.Context, volID string,
 		return errors.New("missing target path")
 	}
 
-	conn, err := newGrpcConn(c.driverName)
+	conn, err := c.newGrpcConn()
 	if err != nil {
 		return err
 	}
@@ -204,7 +208,7 @@ func (c *csiDriverClient) NodeStageVolume(ctx context.Context,
 		return errors.New("missing staging target path")
 	}
 
-	conn, err := newGrpcConn(c.driverName)
+	conn, err := c.newGrpcConn()
 	if err != nil {
 		return err
 	}
@@ -249,7 +253,7 @@ func (c *csiDriverClient) NodeUnstageVolume(ctx context.Context, volID, stagingT
 		return errors.New("missing staging target path")
 	}
 
-	conn, err := newGrpcConn(c.driverName)
+	conn, err := c.newGrpcConn()
 	if err != nil {
 		return err
 	}
@@ -267,7 +271,7 @@ func (c *csiDriverClient) NodeUnstageVolume(ctx context.Context, volID, stagingT
 func (c *csiDriverClient) NodeGetCapabilities(ctx context.Context) ([]*csipb.NodeServiceCapability, error) {
 	glog.V(4).Info(log("calling NodeGetCapabilities rpc"))
 
-	conn, err := newGrpcConn(c.driverName)
+	conn, err := c.newGrpcConn()
 	if err != nil {
 		return nil, err
 	}
@@ -282,28 +286,16 @@ func (c *csiDriverClient) NodeGetCapabilities(ctx context.Context) ([]*csipb.Nod
 	return resp.GetCapabilities(), nil
 }
 
-func asCSIAccessMode(am api.PersistentVolumeAccessMode) csipb.VolumeCapability_AccessMode_Mode {
-	switch am {
-	case api.ReadWriteOnce:
-		return csipb.VolumeCapability_AccessMode_SINGLE_NODE_WRITER
-	case api.ReadOnlyMany:
-		return csipb.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY
-	case api.ReadWriteMany:
-		return csipb.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER
-	}
-	return csipb.VolumeCapability_AccessMode_UNKNOWN
-}
-
-func newGrpcConn(driverName string) (*grpc.ClientConn, error) {
-	if driverName == "" {
+func (c *csiDriverClient) newGrpcConn() (*grpc.ClientConn, error) {
+	if c.driverName == "" {
 		return nil, fmt.Errorf("driver name is empty")
 	}
-	addr := fmt.Sprintf(csiAddrTemplate, driverName)
+	addr := fmt.Sprintf(csiAddrTemplate, c.driverName)
 	// TODO once KubeletPluginsWatcher graduates to beta, remove FeatureGate check
 	if utilfeature.DefaultFeatureGate.Enabled(features.KubeletPluginsWatcher) {
-		driver, ok := csiDrivers.driversMap[driverName]
+		driver, ok := c.drivers.driversMap[c.driverName]
 		if !ok {
-			return nil, fmt.Errorf("driver name %s not found in the list of registered CSI drivers", driverName)
+			return nil, fmt.Errorf("driver name %s not found in the list of registered CSI drivers", c.driverName)
 		}
 		addr = driver.driverEndpoint
 	}
@@ -317,4 +309,16 @@ func newGrpcConn(driverName string) (*grpc.ClientConn, error) {
 			return net.Dial(network, target)
 		}),
 	)
+}
+
+func asCSIAccessMode(am api.PersistentVolumeAccessMode) csipb.VolumeCapability_AccessMode_Mode {
+	switch am {
+	case api.ReadWriteOnce:
+		return csipb.VolumeCapability_AccessMode_SINGLE_NODE_WRITER
+	case api.ReadOnlyMany:
+		return csipb.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY
+	case api.ReadWriteMany:
+		return csipb.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER
+	}
+	return csipb.VolumeCapability_AccessMode_UNKNOWN
 }
