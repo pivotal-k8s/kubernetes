@@ -110,8 +110,8 @@ func registerFakePlugin(pluginName, endpoint string, versions []string, t *testi
 		t.Fatalf("unexpected error parsing versions (%v) for pluginName % q endpoint %q: %#v", versions, pluginName, endpoint, err)
 	}
 
-	csiDrivers.Clear()
-	csiDrivers.Set(pluginName, Driver{
+	PluginHandler.drivers.Clear()
+	PluginHandler.drivers.Set(pluginName, Driver{
 		endpoint:                endpoint,
 		highestSupportedVersion: highestSupportedVersions,
 	})
@@ -877,8 +877,8 @@ func TestValidatePluginExistingDriver(t *testing.T) {
 			t.Fatalf("unexpected error parsing version for testcase: %#v", tc)
 		}
 
-		csiDrivers.Clear()
-		csiDrivers.Set(tc.pluginName1, Driver{
+		PluginHandler.drivers.Clear()
+		PluginHandler.drivers.Set(tc.pluginName1, Driver{
 			endpoint:                tc.endpoint1,
 			highestSupportedVersion: highestSupportedVersions1,
 		})
