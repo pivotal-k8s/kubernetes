@@ -321,7 +321,7 @@ func (c *csiAttacher) MountDevice(spec *volume.Spec, devicePath string, deviceMo
 	}()
 
 	if c.csiClient == nil {
-		c.csiClient, err = newCsiDriverClient(csiDriverName(csiSource.Driver))
+		c.csiClient, err = newCsiDriverClient(csiDriverName(csiSource.Driver), c.plugin.drivers)
 		if err != nil {
 			klog.Errorf(log("attacher.MountDevice failed to create newCsiDriverClient: %v", err))
 			return err
@@ -505,7 +505,7 @@ func (c *csiAttacher) UnmountDevice(deviceMountPath string) error {
 	}
 
 	if c.csiClient == nil {
-		c.csiClient, err = newCsiDriverClient(csiDriverName(driverName))
+		c.csiClient, err = newCsiDriverClient(csiDriverName(driverName), c.plugin.drivers)
 		if err != nil {
 			klog.Errorf(log("attacher.UnmountDevice failed to create newCsiDriverClient: %v", err))
 			return err
