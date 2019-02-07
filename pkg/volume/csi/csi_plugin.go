@@ -86,10 +86,8 @@ var _ volume.VolumePlugin = &csiPlugin{}
 // RegistrationHandler is the handler which is fed to the pluginwatcher API.
 type RegistrationHandler struct {
 	drivers *DriversStore
+	nim     nodeinfomanager.Interface
 }
-
-// TODO(hoegaarden) remove global
-var nim nodeinfomanager.Interface
 
 // PluginHandler is the plugin registration handler interface passed to the
 // pluginwatcher module in kubelet
@@ -155,7 +153,7 @@ func (h *RegistrationHandler) RegisterPlugin(pluginName string, endpoint string,
 		return err
 	}
 
-	err = nim.InstallCSIDriver(pluginName, driverNodeID, maxVolumePerNode, accessibleTopology)
+	err = PluginHandler.nim.InstallCSIDriver(pluginName, driverNodeID, maxVolumePerNode, accessibleTopology)
 	if err != nil {
 		klog.Error(log("registrationHandler.RegisterPlugin failed at AddNodeInfo: %v", err))
 		if unregErr := unregisterDriver(pluginName); unregErr != nil {
@@ -221,7 +219,7 @@ func (p *csiPlugin) Init(host volume.VolumeHost) error {
 	}
 
 	// Initializing the label management channels
-	nim = nodeinfomanager.NewNodeInfoManager(host.GetNodeName(), host)
+	PluginHandler.nim = nodeinfomanager.NewNodeInfoManager(host.GetNodeName(), host)
 
 	// TODO(#70514) Init CSINodeInfo object if the CRD exists and create Driver
 	// objects for migrated drivers.
@@ -656,7 +654,7 @@ func (p *csiPlugin) getPublishContext(client clientset.Interface, handle, driver
 func unregisterDriver(driverName string) error {
 	PluginHandler.drivers.Delete(driverName)
 
-	if err := nim.UninstallCSIDriver(driverName); err != nil {
+	if err := PluginHandler.nim.UninstallCSIDriver(driverName); err != nil {
 		klog.Errorf("Error uninstalling CSI driver: %v", err)
 		return err
 	}
