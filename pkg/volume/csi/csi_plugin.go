@@ -141,7 +141,7 @@ func (p *csiPlugin) RegisterPlugin(pluginName string, endpoint string, versions 
 	})
 
 	// Get node info from the driver.
-	csi, err := newCsiDriverClient(csiDriverName(pluginName), p.drivers)
+	csi, err := p.newCsiDriverClient(csiDriverName(pluginName))
 	if err != nil {
 		return err
 	}
@@ -198,6 +198,39 @@ func (p *csiPlugin) validateVersions(callerName, pluginName string, endpoint str
 	}
 
 	return newDriverHighestVersion, nil
+}
+
+func (p *csiPlugin) newCsiDriverClient(driverName csiDriverName) (*csiDriverClient, error) {
+	if driverName == "" {
+		return nil, fmt.Errorf("driver name is empty")
+	}
+
+	addr := fmt.Sprintf(csiAddrTemplate, driverName)
+	requiresV0Client := true
+	if utilfeature.DefaultFeatureGate.Enabled(features.KubeletPluginsWatcher) {
+		existingDriver, driverExists := p.drivers.Get(string(driverName))
+		if !driverExists {
+			return nil, fmt.Errorf("driver name %s not found in the list of registered CSI drivers", driverName)
+		}
+
+		addr = existingDriver.endpoint
+		requiresV0Client = versionRequiresV0Client(existingDriver.highestSupportedVersion)
+	}
+
+	nodeV1ClientCreator := newV1NodeClient
+	nodeV0ClientCreator := newV0NodeClient
+	if requiresV0Client {
+		nodeV1ClientCreator = nil
+	} else {
+		nodeV0ClientCreator = nil
+	}
+
+	return &csiDriverClient{
+		driverName:          driverName,
+		addr:                csiAddr(addr),
+		nodeV1ClientCreator: nodeV1ClientCreator,
+		nodeV0ClientCreator: nodeV0ClientCreator,
+	}, nil
 }
 
 // DeRegisterPlugin is called when a plugin removed its socket, signaling
@@ -285,7 +318,7 @@ func (p *csiPlugin) NewMounter(
 		return nil, errors.New("failed to get a Kubernetes client")
 	}
 
-	csi, err := newCsiDriverClient(csiDriverName(pvSource.Driver), p.drivers)
+	csi, err := p.newCsiDriverClient(csiDriverName(pvSource.Driver))
 	if err != nil {
 		return nil, err
 	}
@@ -357,7 +390,7 @@ func (p *csiPlugin) NewUnmounter(specName string, podUID types.UID) (volume.Unmo
 	}
 	unmounter.driverName = csiDriverName(data[volDataKey.driverName])
 	unmounter.volumeID = data[volDataKey.volHandle]
-	unmounter.csiClient, err = newCsiDriverClient(unmounter.driverName, p.drivers)
+	unmounter.csiClient, err = p.newCsiDriverClient(unmounter.driverName)
 	if err != nil {
 		return nil, err
 	}
@@ -495,7 +528,7 @@ func (p *csiPlugin) NewBlockVolumeMapper(spec *volume.Spec, podRef *api.Pod, opt
 	}
 
 	klog.V(4).Info(log("setting up block mapper for [volume=%v,driver=%v]", pvSource.VolumeHandle, pvSource.Driver))
-	client, err := newCsiDriverClient(csiDriverName(pvSource.Driver), p.drivers)
+	client, err := p.newCsiDriverClient(csiDriverName(pvSource.Driver))
 	if err != nil {
 		return nil, err
 	}
@@ -571,7 +604,7 @@ func (p *csiPlugin) NewBlockVolumeUnmapper(volName string, podUID types.UID) (vo
 	}
 	unmapper.driverName = csiDriverName(data[volDataKey.driverName])
 	unmapper.volumeID = data[volDataKey.volHandle]
-	unmapper.csiClient, err = newCsiDriverClient(unmapper.driverName, p.drivers)
+	unmapper.csiClient, err = p.newCsiDriverClient(unmapper.driverName)
 	if err != nil {
 		return nil, err
 	}
