@@ -102,7 +102,7 @@ var _ volume.VolumePlugin = &csiPlugin{}
 
 // ValidatePlugin is called by kubelet's plugin watcher upon detection
 // of a new registration socket opened by CSI Driver registrar side car.
-// for PluginHandler
+// implements: PluginHandler
 func (p *csiPlugin) ValidatePlugin(pluginName string, endpoint string, versions []string, foundInDeprecatedDir bool) error {
 	klog.Infof(log("Trying to validate a new CSI Driver with name: %s endpoint: %s versions: %s, foundInDeprecatedDir: %v",
 		pluginName, endpoint, strings.Join(versions, ","), foundInDeprecatedDir))
@@ -124,7 +124,7 @@ func (p *csiPlugin) ValidatePlugin(pluginName string, endpoint string, versions 
 }
 
 // RegisterPlugin is called when a plugin can be registered
-// for PluginHandler
+// implements: PluginHandler
 func (p *csiPlugin) RegisterPlugin(pluginName string, endpoint string, versions []string) error {
 	klog.Infof(log("Register new plugin with name: %s at endpoint: %s", pluginName, endpoint))
 
@@ -235,7 +235,7 @@ func (p *csiPlugin) newCsiDriverClient(driverName csiDriverName) (*csiDriverClie
 
 // DeRegisterPlugin is called when a plugin removed its socket, signaling
 // it is no longer available
-// for PluginHandler
+// implements: PluginHandler
 func (p *csiPlugin) DeRegisterPlugin(pluginName string) {
 	klog.V(4).Info(log("registrationHandler.DeRegisterPlugin request for plugin %s", pluginName))
 	if err := p.unregisterDriver(pluginName); err != nil {
@@ -243,6 +243,10 @@ func (p *csiPlugin) DeRegisterPlugin(pluginName string) {
 	}
 }
 
+// Init initializes the plugin.
+// This must be called exactly once before any New* (NewMounter, NewAttacher,
+// ...) methods are called the plugin.
+// implements: VolumePlugin
 func (p *csiPlugin) Init(host volume.VolumeHost) error {
 	p.host = host
 
@@ -268,12 +272,15 @@ func (p *csiPlugin) Init(host volume.VolumeHost) error {
 	return nil
 }
 
+// GetPluginName returns the unique name of this volume plugin
+// implements: VolumePlugin
 func (p *csiPlugin) GetPluginName() string {
 	return csiPluginName
 }
 
-// GetvolumeName returns a concatenated string of CSIVolumeSource.Driver<volNameSe>CSIVolumeSource.VolumeHandle
+// GetVolumeName returns a concatenated string of CSIVolumeSource.Driver<volNameSe>CSIVolumeSource.VolumeHandle
 // That string value is used in Detach() to extract driver name and volumeName.
+// implements: VolumePlugin
 func (p *csiPlugin) GetVolumeName(spec *volume.Spec) (string, error) {
 	csi, err := getCSISourceFromSpec(spec)
 	if err != nil {
@@ -285,20 +292,34 @@ func (p *csiPlugin) GetVolumeName(spec *volume.Spec) (string, error) {
 	return fmt.Sprintf("%s%s%s", csi.Driver, volNameSep, csi.VolumeHandle), nil
 }
 
+// CanSupport states whether the plugin supports a given volume
+// specification from the API.  The spec pointer should be considered
+// const.
+// implements: VolumePlugin
 func (p *csiPlugin) CanSupport(spec *volume.Spec) bool {
 	// TODO (vladimirvivien) CanSupport should also take into account
 	// the availability/registration of specified Driver in the volume source
 	return spec.PersistentVolume != nil && spec.PersistentVolume.Spec.CSI != nil
 }
 
+// IsMigratedToCSI tests whether a CSIDriver implements this plugin's
+// functionality
+// implements: VolumePlugin
 func (p *csiPlugin) IsMigratedToCSI() bool {
 	return false
 }
 
+// RequiresRemount returns true if this plugin requires mount calls to be
+// reexecuted. Atomically updating volumes, like Downward API, depend on
+// this to update the contents of the volume.
+// implements: VolumePlugin
 func (p *csiPlugin) RequiresRemount() bool {
 	return false
 }
 
+// NewMounter creates a new volume.Mounter from an API specification.
+// Ownership of the spec pointer in *not* transferred.
+// implements: VolumePlugin
 func (p *csiPlugin) NewMounter(
 	spec *volume.Spec,
 	pod *api.Pod,
@@ -371,6 +392,8 @@ func (p *csiPlugin) NewMounter(
 	return mounter, nil
 }
 
+// NewUnmounter creates a new volume.Unmounter from recoverable state.
+// implements: VolumePlugin
 func (p *csiPlugin) NewUnmounter(specName string, podUID types.UID) (volume.Unmounter, error) {
 	klog.V(4).Infof(log("setting up unmounter for [name=%v, podUID=%v]", specName, podUID))
 
@@ -398,6 +421,11 @@ func (p *csiPlugin) NewUnmounter(specName string, podUID types.UID) (volume.Unmo
 	return unmounter, nil
 }
 
+// ConstructVolumeSpec constructs a volume spec based on the given volume name
+// and mountPath. The spec may have incomplete information due to limited
+// information from input. This function is used by volume manager to reconstruct
+// volume spec by reading the volume directories from disk
+// implements: VolumePlugin
 func (p *csiPlugin) ConstructVolumeSpec(volumeName, mountPath string) (*volume.Spec, error) {
 	klog.V(4).Info(log("plugin.ConstructVolumeSpec [pv.Name=%v, path=%v]", volumeName, mountPath))
 
@@ -428,6 +456,10 @@ func (p *csiPlugin) ConstructVolumeSpec(volumeName, mountPath string) (*volume.S
 	return volume.NewSpecFromPersistentVolume(pv, false), nil
 }
 
+// SupportsMountOption returns true if volume plugins supports Mount options
+// Specifying mount options in a volume plugin that doesn't support
+// user specified mount options will result in error creating persistent volumes
+// implements: VolumePlugin
 func (p *csiPlugin) SupportsMountOption() bool {
 	// TODO (vladimirvivien) use CSI VolumeCapability.MountVolume.mount_flags
 	// to probe for the result for this method
@@ -437,6 +469,10 @@ func (p *csiPlugin) SupportsMountOption() bool {
 	return true
 }
 
+// SupportsBulkVolumeVerification checks if volume plugin type is capable
+// of enabling bulk polling of all nodes. This can speed up verification of
+// attached volumes by quite a bit, but underlying pluging must support it.
+// implements: VolumePlugin
 func (p *csiPlugin) SupportsBulkVolumeVerification() bool {
 	return false
 }
@@ -446,6 +482,8 @@ var _ volume.AttachableVolumePlugin = &csiPlugin{}
 
 var _ volume.DeviceMountableVolumePlugin = &csiPlugin{}
 
+// NewAttacher initializes a new Attacher
+// implements: AttachableVolumePlugin
 func (p *csiPlugin) NewAttacher() (volume.Attacher, error) {
 	k8s := p.host.GetKubeClient()
 	if k8s == nil {
@@ -460,10 +498,14 @@ func (p *csiPlugin) NewAttacher() (volume.Attacher, error) {
 	}, nil
 }
 
+// NewDeviceMounter initializes a new DeviceMounter
+// implements: DeviceMountablePlugin
 func (p *csiPlugin) NewDeviceMounter() (volume.DeviceMounter, error) {
 	return p.NewAttacher()
 }
 
+// NewDetacher initializes a new Detacher
+// implements: AttachableVolumePlugin
 func (p *csiPlugin) NewDetacher() (volume.Detacher, error) {
 	k8s := p.host.GetKubeClient()
 	if k8s == nil {
@@ -478,6 +520,8 @@ func (p *csiPlugin) NewDetacher() (volume.Detacher, error) {
 	}, nil
 }
 
+// CanAttach checks if the given volume spec is attachable
+// implements: AttachableVolumePlugin
 func (p *csiPlugin) CanAttach(spec *volume.Spec) bool {
 	if spec.PersistentVolume == nil {
 		klog.Error(log("plugin.CanAttach test failed, spec missing PersistentVolume"))
@@ -501,10 +545,16 @@ func (p *csiPlugin) CanAttach(spec *volume.Spec) bool {
 	return !skipAttach
 }
 
+// NewDeviceUnmounter initializes a new DeviceUnmounter
+// implements: DeviceMountablePlugin
 func (p *csiPlugin) NewDeviceUnmounter() (volume.DeviceUnmounter, error) {
 	return p.NewDetacher()
 }
 
+// GetDeviceMountRefs finds all mount references to the path, returns a
+// list of paths. Path could be a mountpoint path, device or a normal
+// directory (for bind mount).
+// implements: DeviceMountablePlugin
 func (p *csiPlugin) GetDeviceMountRefs(deviceMountPath string) ([]string, error) {
 	m := p.host.GetMounter(p.GetPluginName())
 	return m.GetMountRefs(deviceMountPath)
@@ -513,6 +563,9 @@ func (p *csiPlugin) GetDeviceMountRefs(deviceMountPath string) ([]string, error)
 // BlockVolumePlugin methods
 var _ volume.BlockVolumePlugin = &csiPlugin{}
 
+// NewBlockVolumeMapper creates a new volume.BlockVolumeMapper from an API specification.
+// Ownership of the spec pointer in *not* transferred.
+// implements: BlocckVolumePlugin
 func (p *csiPlugin) NewBlockVolumeMapper(spec *volume.Spec, podRef *api.Pod, opts volume.VolumeOptions) (volume.BlockVolumeMapper, error) {
 	if !p.blockEnabled {
 		return nil, errors.New("CSIBlockVolume feature not enabled")
@@ -583,6 +636,8 @@ func (p *csiPlugin) NewBlockVolumeMapper(spec *volume.Spec, podRef *api.Pod, opt
 	return mapper, nil
 }
 
+// NewBlockVolumeUnmapper creates a new volume.BlockVolumeUnmapper from recoverable state.
+// implements: BlockVolumePlugin
 func (p *csiPlugin) NewBlockVolumeUnmapper(volName string, podUID types.UID) (volume.BlockVolumeUnmapper, error) {
 	if !p.blockEnabled {
 		return nil, errors.New("CSIBlockVolume feature not enabled")
@@ -612,6 +667,12 @@ func (p *csiPlugin) NewBlockVolumeUnmapper(volName string, podUID types.UID) (vo
 	return unmapper, nil
 }
 
+// ConstructBlockVolumeSpec constructs a volume spec based on the given
+// podUID, volume name and a pod device map path.
+// The spec may have incomplete information due to limited information
+// from input. This function is used by volume manager to reconstruct
+// volume spec by reading the volume directories from disk.
+// implements: BlockVolumePlugin
 func (p *csiPlugin) ConstructBlockVolumeSpec(podUID types.UID, specVolName, mapPath string) (*volume.Spec, error) {
 	if !p.blockEnabled {
 		return nil, errors.New("CSIBlockVolume feature not enabled")
