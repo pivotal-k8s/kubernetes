@@ -22,7 +22,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sync"
 	"testing"
 
 	api "k8s.io/api/core/v1"
@@ -42,10 +41,6 @@ import (
 
 // create a plugin mgr to load plugins and setup a fake client
 func newTestPlugin(t *testing.T, client *fakeclient.Clientset) (*csiPlugin, string) {
-	// Only for the test cases, ensure we get a new plugin all the time
-	// TODO(hoegaarden) remove when kubelet discovers the CSI plugin handler by name
-	once = sync.Once{}
-
 	tmpDir, err := utiltesting.MkTmpdir("csi-test")
 	if err != nil {
 		t.Fatalf("can't create temp dir: %v", err)

@@ -24,7 +24,6 @@ import (
 	"path"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"k8s.io/klog"
@@ -81,24 +80,13 @@ type driverMode string
 const persistentDriverMode driverMode = "persistent"
 const ephemeralDriverMode driverMode = "ephemeral"
 
-// PluginHandler is only needed for the kubelet to add the CSI plugin as a pluginwatcher handler
-// as soon as the kubelet discovers the CSI plugin via name and not via this
-// package-global variable, we can remove that singleton again.
-// TODO(hoegaarden) remove when kubelet discovers the CSI plugin handler by name
-var PluginHandler *csiPlugin
-var once sync.Once
-
 // ProbeVolumePlugins returns implemented plugins
 func ProbeVolumePlugins() []volume.VolumePlugin {
-	// TODO(hoegaarden) remove when kubelet discovers the CSI plugin handler by name
-	once.Do(func() {
-		PluginHandler = &csiPlugin{
-			host:         nil,
-			blockEnabled: utilfeature.DefaultFeatureGate.Enabled(features.CSIBlockVolume),
-			drivers:      &DriversStore{},
-		}
-	})
-	return []volume.VolumePlugin{PluginHandler}
+	return []volume.VolumePlugin{&csiPlugin{
+		host:         nil,
+		blockEnabled: utilfeature.DefaultFeatureGate.Enabled(features.CSIBlockVolume),
+		drivers:      &DriversStore{},
+	}}
 }
 
 var _ pluginwatcher.PluginHandler = &csiPlugin{}
