@@ -186,9 +186,10 @@ func (g *GenericPLEG) updateRelistTime(timestamp time.Time) {
 // relist queries the container runtime for list of pods/containers, compare
 // with the internal pods/containers, and generates events accordingly.
 func (g *GenericPLEG) relist() {
-	klog.V(5).Infof("GenericPLEG: Relisting")
+	klog.V(5).Infof("GenericPLEG: Relisting, lastRelistTime: %v", g.getRelistTime())
 
 	if lastRelistTime := g.getRelistTime(); !lastRelistTime.IsZero() {
+		klog.V(5).Infof("GenericPLEG: lastRelistTime := g.getRelistTime(); !lastRelistTime.IsZero()")
 		metrics.PLEGRelistInterval.Observe(metrics.SinceInSeconds(lastRelistTime))
 		metrics.DeprecatedPLEGRelistInterval.Observe(metrics.SinceInMicroseconds(lastRelistTime))
 	}
@@ -199,6 +200,7 @@ func (g *GenericPLEG) relist() {
 		metrics.DeprecatedPLEGRelistLatency.Observe(metrics.SinceInMicroseconds(timestamp))
 	}()
 
+	klog.V(5).Infof("GenericPLEG: GetPods")
 	// Get all the pods.
 	podList, err := g.runtime.GetPods(true)
 	if err != nil {
@@ -206,6 +208,7 @@ func (g *GenericPLEG) relist() {
 		return
 	}
 
+	klog.V(5).Infof("GenericPLEG: updateRelistTime %v", timestamp)
 	g.updateRelistTime(timestamp)
 
 	pods := kubecontainer.Pods(podList)
@@ -226,6 +229,7 @@ func (g *GenericPLEG) relist() {
 		}
 	}
 
+	klog.V(5).Infof("GenericPLEG: 1")
 	var needsReinspection map[types.UID]*kubecontainer.Pod
 	if g.cacheEnabled() {
 		needsReinspection = make(map[types.UID]*kubecontainer.Pod)
@@ -275,6 +279,7 @@ func (g *GenericPLEG) relist() {
 			}
 		}
 	}
+	klog.V(5).Infof("GenericPLEG: 2")
 
 	if g.cacheEnabled() {
 		// reinspect any pods that failed inspection during the previous relist
@@ -294,6 +299,7 @@ func (g *GenericPLEG) relist() {
 		g.cache.UpdateTime(timestamp)
 	}
 
+	klog.V(5).Infof("GenericPLEG: 3")
 	// make sure we retain the list of pods that need reinspecting the next time relist is called
 	g.podsToReinspect = needsReinspection
 }
