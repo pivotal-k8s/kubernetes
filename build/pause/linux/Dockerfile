@@ -14,5 +14,5 @@
 
 FROM scratch
 ARG ARCH
-ADD bin/pause-${ARCH} /pause
+ADD bin/pause-linux-${ARCH} /pause
 ENTRYPOINT ["/pause"]
