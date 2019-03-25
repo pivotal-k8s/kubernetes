@@ -13,5 +13,7 @@
 # limitations under the License.
 
 FROM mcr.microsoft.com/windows/nanoserver:1809
+ARG ARCH
+ADD bin/wincat-windows-${ARCH} /wincat.exe
 
 CMD cmd /c ping -t localhost

@@ -36,6 +36,9 @@ KUBE_CROSS_VERSION ?= $(shell cat ../build-image/cross/VERSION)
 LINUX-BIN = pause
 LINUX-SRCS = linux/pause.c
 
+WINDOWS-BIN = wincat
+WINDOWS-SRCS = windows/wincat.go
+
 # The manifest command is still experimental as of Docker 18.09.3
 export DOCKER_CLI_EXPERIMENTAL=enabled
 
@@ -98,13 +101,25 @@ bin/$(LINUX-BIN)-linux-$(ARCH): $(LINUX-SRCS)
 			$(TRIPLE)-gcc $(CFLAGS) -o $@ $^ && \
 			$(TRIPLE)-strip $@"
 
+bin/$(WINDOWS-BIN)-windows-$(ARCH): $(WINDOWS-SRCS)
+	mkdir -p bin
+	docker run --rm -e GOOS=windows -v $$(pwd):/build \
+		$(KUBE_CROSS_IMAGE):$(KUBE_CROSS_VERSION) \
+		/bin/bash -c "\
+			cd /build && \
+			go build -o $@ $^"
+
 container: .container-$(OS)-$(ARCH)
 .container-linux-$(ARCH): bin/$(LINUX-BIN)-linux-$(ARCH)
 	docker build --pull -t $(IMAGE_WITH_OS_ARCH):$(TAG) --build-arg ARCH=$(ARCH) -f linux/Dockerfile .
 	touch $@
 
-.container-windows-$(ARCH):
-	DOCKER_HOST=${WINDOWS_DOCKER_HOST} DOCKER_CERT_PATH=${WINDOWS_DOCKER_CERT_PATH} DOCKER_TLS_VERIFY=${WINDOWS_DOCKER_TLS_VERIFY} docker build --pull -t $(IMAGE_WITH_OS_ARCH):$(TAG) -f windows/Dockerfile .
+.container-windows-$(ARCH): bin/$(WINDOWS-BIN)-windows-$(ARCH)
+	mkdir -p bin
+	DOCKER_HOST=${WINDOWS_DOCKER_HOST} \
+		DOCKER_CERT_PATH=${WINDOWS_DOCKER_CERT_PATH} \
+		DOCKER_TLS_VERIFY=${WINDOWS_DOCKER_TLS_VERIFY} \
+		docker build --pull -t $(IMAGE_WITH_OS_ARCH):$(TAG) --build-arg ARCH=$(ARCH) -f windows/Dockerfile .
 	touch $@
 
 push: .push-$(OS)-$(ARCH)
@@ -112,7 +127,10 @@ push: .push-$(OS)-$(ARCH)
 	docker push $(IMAGE_WITH_OS_ARCH):$(TAG)
 	touch $@
 .push-windows-$(ARCH): .container-$(OS)-$(ARCH)
-	DOCKER_HOST=${WINDOWS_DOCKER_HOST} DOCKER_CERT_PATH=${WINDOWS_DOCKER_CERT_PATH} DOCKER_TLS_VERIFY=${WINDOWS_DOCKER_TLS_VERIFY} docker push $(IMAGE_WITH_OS_ARCH):$(TAG)
+	DOCKER_HOST=${WINDOWS_DOCKER_HOST} \
+		DOCKER_CERT_PATH=${WINDOWS_DOCKER_CERT_PATH} \
+		DOCKER_TLS_VERIFY=${WINDOWS_DOCKER_TLS_VERIFY} \
+		docker push $(IMAGE_WITH_OS_ARCH):$(TAG)
 	touch $@
 
 # Useful for testing, not automatically included in container image
