@@ -55,7 +55,6 @@ var (
 )
 
 type csiMountMgr struct {
-	csiClientGetter
 	k8s            kubernetes.Interface
 	plugin         *csiPlugin
 	driverName     csiDriverName
@@ -110,7 +109,7 @@ func (c *csiMountMgr) SetUpAt(dir string, fsGroup *int64) error {
 		return nil
 	}
 
-	csi, err := c.csiClientGetter.Get()
+	csi, err := c.plugin.cachedDriverClient(c.driverName)
 	if err != nil {
 		klog.Error(log("mounter.SetUpAt failed to get CSI client: %v", err))
 		return err
@@ -352,7 +351,7 @@ func (c *csiMountMgr) TearDownAt(dir string) error {
 	klog.V(4).Infof(log("Unmounter.TearDown(%s)", dir))
 
 	volID := c.volumeID
-	csi, err := c.csiClientGetter.Get()
+	csi, err := c.plugin.cachedDriverClient(c.driverName)
 	if err != nil {
 		klog.Error(log("mounter.SetUpAt failed to get CSI client: %v", err))
 		return err

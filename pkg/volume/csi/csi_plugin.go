@@ -24,6 +24,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"k8s.io/klog"
@@ -72,6 +73,9 @@ type csiPlugin struct {
 
 	drivers *DriversStore
 	nim     nodeinfomanager.Interface
+
+	sync.RWMutex
+	clients map[csiDriverName]csiClient
 }
 
 //TODO (vladimirvivien) add this type to storage api
@@ -86,6 +90,8 @@ func ProbeVolumePlugins() []volume.VolumePlugin {
 		host:         nil,
 		blockEnabled: utilfeature.DefaultFeatureGate.Enabled(features.CSIBlockVolume),
 		drivers:      &DriversStore{},
+
+		clients: map[csiDriverName]csiClient{},
 	}}
 }
 
@@ -135,7 +141,7 @@ func (p *csiPlugin) RegisterPlugin(pluginName string, endpoint string, versions 
 	})
 
 	// Get node info from the driver.
-	csi, err := p.newCsiDriverClient(csiDriverName(pluginName))
+	csi, err := p.cachedDriverClient(csiDriverName(pluginName))
 	if err != nil {
 		return err
 	}
@@ -192,6 +198,38 @@ func (p *csiPlugin) validateVersions(callerName, pluginName string, endpoint str
 	return newDriverHighestVersion, nil
 }
 
+// cachedDriverClient returns a CSI client, either a cached one or a newly
+// constructed one.
+//
+// This provides a method to initialize CSI client with driver name and caches
+// it for later use. When CSI clients have not been discovered yet (e.g.
+// on kubelet restart), client initialization will fail. Users of CSI client (e.g.
+// mounter manager and block mapper) can use this to delay CSI client
+// initialization until needed.
+func (p *csiPlugin) cachedDriverClient(driverName csiDriverName) (csiClient, error) {
+	p.RLock()
+	if client, ok := p.clients[driverName]; ok && client != nil {
+		p.RUnlock()
+		return client, nil
+	}
+	p.RUnlock()
+
+	p.Lock()
+	defer p.Unlock()
+	// Double-checking locking criterion.
+	if client, ok := p.clients[driverName]; ok && client != nil {
+		return client, nil
+	}
+
+	client, err := p.newCsiDriverClient(driverName)
+	if err != nil {
+		return nil, err
+	}
+	p.clients[driverName] = client
+
+	return client, nil
+}
+
 // newCsiDriverClient creates a CSI driver client based on a driver name.
 func (p *csiPlugin) newCsiDriverClient(driverName csiDriverName) (*csiDriverClient, error) {
 	if driverName == "" {
@@ -224,14 +262,6 @@ func (p *csiPlugin) newCsiDriverClient(driverName csiDriverName) (*csiDriverClie
 		nodeV1ClientCreator: nodeV1ClientCreator,
 		nodeV0ClientCreator: nodeV0ClientCreator,
 	}, nil
-}
-
-// getClientCreator takes a driver name and returns a function that constructs
-// a new CSI driver client of that name/type.
-func (p *csiPlugin) getClientCreator(driverName csiDriverName) func() (*csiDriverClient, error) {
-	return func() (*csiDriverClient, error) {
-		return p.newCsiDriverClient(driverName)
-	}
 }
 
 // DeRegisterPlugin is called when a plugin removed its socket, signaling
@@ -462,7 +492,6 @@ func (p *csiPlugin) NewMounter(
 		specVolumeID: spec.Name(),
 		readOnly:     readOnly,
 	}
-	mounter.csiClientGetter.clientCreator = p.getClientCreator(csiDriverName(driverName))
 
 	// Save volume info in pod dir
 	dir := mounter.GetPath()
@@ -522,7 +551,6 @@ func (p *csiPlugin) NewUnmounter(specName string, podUID types.UID) (volume.Unmo
 	}
 	unmounter.driverName = csiDriverName(data[volDataKey.driverName])
 	unmounter.volumeID = data[volDataKey.volHandle]
-	unmounter.csiClientGetter.clientCreator = p.getClientCreator(unmounter.driverName)
 
 	return unmounter, nil
 }
@@ -747,7 +775,6 @@ func (p *csiPlugin) NewBlockVolumeMapper(spec *volume.Spec, podRef *api.Pod, opt
 		specName:   spec.Name(),
 		podUID:     podRef.UID,
 	}
-	mapper.csiClientGetter.clientCreator = p.getClientCreator(csiDriverName(pvSource.Driver))
 
 	// Save volume info in pod dir
 	dataDir := getVolumeDeviceDataDir(spec.Name(), p.host)
@@ -804,7 +831,6 @@ func (p *csiPlugin) NewBlockVolumeUnmapper(volName string, podUID types.UID) (vo
 	}
 	unmapper.driverName = csiDriverName(data[volDataKey.driverName])
 	unmapper.volumeID = data[volDataKey.volHandle]
-	unmapper.csiClientGetter.clientCreator = p.getClientCreator(unmapper.driverName)
 
 	return unmapper, nil
 }

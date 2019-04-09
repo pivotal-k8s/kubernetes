@@ -179,7 +179,7 @@ func MounterSetUpTests(t *testing.T, podInfoEnabled bool) {
 			}
 
 			csiMounter := mounter.(*csiMountMgr)
-			csiMounter.csiClient = setupClient(t, true)
+			fakeCsiClient := injectCsiClient(t, csiMounter.plugin, setupClient(t, true), csiMounter.driverName)
 
 			attachID := getAttachmentName(csiMounter.volumeID, string(csiMounter.driverName), string(plug.host.GetNodeName()))
 
@@ -226,7 +226,7 @@ func MounterSetUpTests(t *testing.T, podInfoEnabled bool) {
 			}
 
 			// ensure call went all the way
-			pubs := csiMounter.csiClient.(*fakeCsiDriverClient).nodeClient.GetNodePublishedVolumes()
+			pubs := fakeCsiClient.nodeClient.GetNodePublishedVolumes()
 			vol, ok := pubs[csiMounter.volumeID]
 			if !ok {
 				t.Error("csi server may not have received NodePublishVolume call")
@@ -333,7 +333,7 @@ func TestMounterSetUpSimple(t *testing.T) {
 			}
 
 			csiMounter := mounter.(*csiMountMgr)
-			csiMounter.csiClient = setupClient(t, true)
+			fakeCsiClient := injectCsiClient(t, csiMounter.plugin, setupClient(t, true), csiMounter.driverName)
 
 			if csiMounter.driverMode != persistentDriverMode {
 				t.Fatal("unexpected driver mode: ", csiMounter.driverMode)
@@ -352,7 +352,7 @@ func TestMounterSetUpSimple(t *testing.T) {
 			}
 
 			// ensure call went all the way
-			pubs := csiMounter.csiClient.(*fakeCsiDriverClient).nodeClient.GetNodePublishedVolumes()
+			pubs := fakeCsiClient.nodeClient.GetNodePublishedVolumes()
 			vol, ok := pubs[csiMounter.volumeID]
 			if !ok {
 				t.Error("csi server may not have received NodePublishVolume call")
@@ -458,7 +458,7 @@ func TestMounterSetUpWithInline(t *testing.T) {
 			}
 
 			csiMounter := mounter.(*csiMountMgr)
-			csiMounter.csiClient = setupClient(t, true)
+			fakeCsiClient := injectCsiClient(t, csiMounter.plugin, setupClient(t, true), csiMounter.driverName)
 
 			if csiMounter.driverMode != tc.mode {
 				t.Fatal("unexpected driver mode: ", csiMounter.driverMode)
@@ -483,7 +483,7 @@ func TestMounterSetUpWithInline(t *testing.T) {
 			}
 
 			// ensure call went all the way
-			pubs := csiMounter.csiClient.(*fakeCsiDriverClient).nodeClient.GetNodePublishedVolumes()
+			pubs := fakeCsiClient.nodeClient.GetNodePublishedVolumes()
 			vol, ok := pubs[csiMounter.volumeID]
 			if !ok {
 				t.Error("csi server may not have received NodePublishVolume call")
@@ -612,7 +612,7 @@ func TestMounterSetUpWithFSGroup(t *testing.T) {
 		}
 
 		csiMounter := mounter.(*csiMountMgr)
-		csiMounter.csiClient = setupClient(t, true)
+		fakeCsiClient := injectCsiClient(t, csiMounter.plugin, setupClient(t, true), csiMounter.driverName)
 
 		attachID := getAttachmentName(csiMounter.volumeID, string(csiMounter.driverName), string(plug.host.GetNodeName()))
 		attachment := makeTestAttachment(attachID, "test-node", pvName)
@@ -639,7 +639,7 @@ func TestMounterSetUpWithFSGroup(t *testing.T) {
 		}
 
 		// ensure call went all the way
-		pubs := csiMounter.csiClient.(*fakeCsiDriverClient).nodeClient.GetNodePublishedVolumes()
+		pubs := fakeCsiClient.nodeClient.GetNodePublishedVolumes()
 		if pubs[csiMounter.volumeID].Path != csiMounter.GetPath() {
 			t.Error("csi server may not have received NodePublishVolume call")
 		}
@@ -682,14 +682,14 @@ func TestUnmounterTeardown(t *testing.T) {
 	}
 
 	csiUnmounter := unmounter.(*csiMountMgr)
-	csiUnmounter.csiClient = setupClient(t, true)
+	fakeCsiClient := injectCsiClient(t, csiUnmounter.plugin, setupClient(t, true), csiUnmounter.driverName)
 	err = csiUnmounter.TearDownAt(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// ensure csi client call
-	pubs := csiUnmounter.csiClient.(*fakeCsiDriverClient).nodeClient.GetNodePublishedVolumes()
+	pubs := fakeCsiClient.nodeClient.GetNodePublishedVolumes()
 	if _, ok := pubs[csiUnmounter.volumeID]; ok {
 		t.Error("csi server may not have received NodeUnpublishVolume call")
 	}

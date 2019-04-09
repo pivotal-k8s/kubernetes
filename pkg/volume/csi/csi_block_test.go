@@ -205,6 +205,19 @@ func TestBlockMapperGetDeviceMapPath(t *testing.T) {
 	}
 }
 
+func injectCsiClient(t *testing.T, plugin *csiPlugin, client csiClient, driverName csiDriverName) *fakeCsiDriverClient {
+	t.Helper()
+
+	fakeClient, ok := client.(*fakeCsiDriverClient)
+	if !ok {
+		t.Fatalf("client %v cannot be casted to a fakeCsiDriverClient", client)
+	}
+
+	plugin.clients = map[csiDriverName]csiClient{}
+	plugin.clients[driverName] = client
+	return fakeClient
+}
+
 func TestBlockMapperSetupDevice(t *testing.T) {
 	defer utilfeaturetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.CSIBlockVolume, true)()
 
@@ -228,7 +241,7 @@ func TestBlockMapperSetupDevice(t *testing.T) {
 	pvName := pv.GetName()
 	nodeName := string(plug.host.GetNodeName())
 
-	csiMapper.csiClient = setupClient(t, true)
+	fakeCsiClient := injectCsiClient(t, csiMapper.plugin, setupClient(t, true), csiMapper.driverName)
 
 	attachID := getAttachmentName(csiMapper.volumeID, string(csiMapper.driverName), string(nodeName))
 	attachment := makeTestAttachment(attachID, nodeName, pvName)
@@ -252,7 +265,7 @@ func TestBlockMapperSetupDevice(t *testing.T) {
 
 	// Check if NodeStageVolume staged to the right path
 	stagingPath := csiMapper.getStagingPath()
-	svols := csiMapper.csiClient.(*fakeCsiDriverClient).nodeClient.GetNodeStagedVolumes()
+	svols := fakeCsiClient.nodeClient.GetNodeStagedVolumes()
 	svol, ok := svols[csiMapper.volumeID]
 	if !ok {
 		t.Error("csi server may not have received NodeStageVolume call")
@@ -262,7 +275,7 @@ func TestBlockMapperSetupDevice(t *testing.T) {
 	}
 
 	// Check if NodePublishVolume published to the right path
-	pvols := csiMapper.csiClient.(*fakeCsiDriverClient).nodeClient.GetNodePublishedVolumes()
+	pvols := fakeCsiClient.nodeClient.GetNodePublishedVolumes()
 	pvol, ok := pvols[csiMapper.volumeID]
 	if !ok {
 		t.Error("csi server may not have received NodePublishVolume call")
@@ -295,7 +308,7 @@ func TestBlockMapperMapDevice(t *testing.T) {
 	pvName := pv.GetName()
 	nodeName := string(plug.host.GetNodeName())
 
-	csiMapper.csiClient = setupClient(t, true)
+	injectCsiClient(t, csiMapper.plugin, setupClient(t, true), csiMapper.driverName)
 
 	attachID := getAttachmentName(csiMapper.volumeID, string(csiMapper.driverName), string(nodeName))
 	attachment := makeTestAttachment(attachID, nodeName, pvName)
@@ -399,7 +412,7 @@ func TestBlockMapperTearDownDevice(t *testing.T) {
 	}
 
 	csiUnmapper := unmapper.(*csiBlockMapper)
-	csiUnmapper.csiClient = setupClient(t, true)
+	fakeCsiClient := injectCsiClient(t, csiUnmapper.plugin, setupClient(t, true), csiUnmapper.driverName)
 
 	globalMapPath, err := csiUnmapper.GetGlobalMapPath(spec)
 	if err != nil {
@@ -412,13 +425,13 @@ func TestBlockMapperTearDownDevice(t *testing.T) {
 	}
 
 	// ensure csi client call and node unpblished
-	pubs := csiUnmapper.csiClient.(*fakeCsiDriverClient).nodeClient.GetNodePublishedVolumes()
+	pubs := fakeCsiClient.nodeClient.GetNodePublishedVolumes()
 	if _, ok := pubs[csiUnmapper.volumeID]; ok {
 		t.Error("csi server may not have received NodeUnpublishVolume call")
 	}
 
 	// ensure csi client call and node unstaged
-	vols := csiUnmapper.csiClient.(*fakeCsiDriverClient).nodeClient.GetNodeStagedVolumes()
+	vols := fakeCsiClient.nodeClient.GetNodeStagedVolumes()
 	if _, ok := vols[csiUnmapper.volumeID]; ok {
 		t.Error("csi server may not have received NodeUnstageVolume call")
 	}

@@ -37,7 +37,6 @@ import (
 )
 
 type csiBlockMapper struct {
-	csiClientGetter
 	k8s        kubernetes.Interface
 	plugin     *csiPlugin
 	driverName csiDriverName
@@ -247,7 +246,7 @@ func (m *csiBlockMapper) SetUpDevice() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), csiTimeout)
 	defer cancel()
 
-	csiClient, err := m.csiClientGetter.Get()
+	csiClient, err := m.plugin.cachedDriverClient(m.driverName)
 	if err != nil {
 		klog.Error(log("blockMapper.SetUpDevice failed to get CSI client: %v", err))
 		return "", err
@@ -332,7 +331,7 @@ func (m *csiBlockMapper) TearDownDevice(globalMapPath, devicePath string) error 
 	ctx, cancel := context.WithTimeout(context.Background(), csiTimeout)
 	defer cancel()
 
-	csiClient, err := m.csiClientGetter.Get()
+	csiClient, err := m.plugin.cachedDriverClient(m.driverName)
 	if err != nil {
 		klog.Error(log("blockMapper.TearDownDevice failed to get CSI client: %v", err))
 		return err
