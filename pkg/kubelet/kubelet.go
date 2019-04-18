@@ -110,7 +110,6 @@ import (
 	nodeutil "k8s.io/kubernetes/pkg/util/node"
 	"k8s.io/kubernetes/pkg/util/oom"
 	"k8s.io/kubernetes/pkg/volume"
-	"k8s.io/kubernetes/pkg/volume/csi"
 	"k8s.io/kubernetes/pkg/volume/util/subpath"
 	utilexec "k8s.io/utils/exec"
 	"k8s.io/utils/integer"
@@ -1386,17 +1385,12 @@ func (kl *Kubelet) initializeRuntimeDependentModules() {
 }
 
 func (kl *Kubelet) registerCSIPluginHandler() error {
-	volumePlugin, err := kl.volumePluginMgr.FindPluginByName(csi.CSIPluginName)
+	handler, err := kl.volumePluginMgr.GetCSIKubeletPluginHandler()
 	if err != nil {
 		return err
 	}
 
-	csiPluginHandler, err := csi.ToPluginHandler(volumePlugin)
-	if err != nil {
-		return err
-	}
-
-	kl.pluginWatcher.AddHandler(pluginwatcherapi.CSIPlugin, csiPluginHandler)
+	kl.pluginWatcher.AddHandler(pluginwatcherapi.CSIPlugin, handler)
 	return nil
 }
 

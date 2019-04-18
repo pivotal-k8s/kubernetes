@@ -38,7 +38,9 @@ import (
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/features"
+	"k8s.io/kubernetes/pkg/kubelet/util/pluginwatcher"
 	"k8s.io/kubernetes/pkg/util/mount"
+	csiIdentity "k8s.io/kubernetes/pkg/volume/csi/identity"
 	"k8s.io/kubernetes/pkg/volume/util/recyclerclient"
 	"k8s.io/kubernetes/pkg/volume/util/subpath"
 )
@@ -310,6 +312,11 @@ type BlockVolumePlugin interface {
 	// from input. This function is used by volume manager to reconstruct
 	// volume spec by reading the volume directories from disk.
 	ConstructBlockVolumeSpec(podUID types.UID, volumeName, volumePath string) (*Spec, error)
+}
+
+type KubeletWatchableVolumePlugin interface {
+	VolumePlugin
+	GetWatcherHandler() pluginwatcher.PluginHandler
 }
 
 // TODO(#14217)
@@ -1026,6 +1033,21 @@ func (pm *VolumePluginMgr) FindNodeExpandablePluginByName(name string) (NodeExpa
 	}
 
 	return nil, nil
+}
+
+func (pm *VolumePluginMgr) GetCSIKubeletPluginHandler() (pluginwatcher.PluginHandler, error) {
+	volumePlugin, err := pm.FindPluginByName(csiIdentity.CSIPluginName)
+	if err != nil {
+		return nil, err
+	}
+
+	kubeletWatchablePlugin, ok := volumePlugin.(KubeletWatchableVolumePlugin)
+	if !ok {
+		// TODO (hoegaarden) Can this even happen?
+		return nil, fmt.Errorf("The CSI plugin is not a KubeletWatchablePlugin")
+	}
+
+	return kubeletWatchablePlugin.GetWatcherHandler(), nil
 }
 
 func (pm *VolumePluginMgr) Run(stopCh <-chan struct{}) {

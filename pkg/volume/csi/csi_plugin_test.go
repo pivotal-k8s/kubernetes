@@ -1563,34 +1563,3 @@ func TestHighestSupportedVersion(t *testing.T) {
 		}
 	}
 }
-
-func TestPluginConversionToPluginHandler(t *testing.T) {
-	testCases := map[string]struct {
-		genericPlugin volume.VolumePlugin
-		expectErr     bool
-	}{
-		"nil cannot be type-casted to csiPlugin": {
-			genericPlugin: nil,
-			expectErr:     true,
-		},
-		"a generic plugin cannot be type-casted to csiPlugin": {
-			genericPlugin: &volumetest.FakeVolumePlugin{},
-			expectErr:     true,
-		},
-		"a CSI plugin can be used as a PluginHandler": {
-			genericPlugin: &csiPlugin{},
-		},
-	}
-
-	for tcName, tc := range testCases {
-		t.Run(tcName, func(t *testing.T) {
-			plug, err := ToPluginHandler(tc.genericPlugin)
-
-			checkErr(t, tc.expectErr, err)
-
-			if err == nil && plug == nil {
-				t.Error("Expected plugin not to be nil")
-			}
-		})
-	}
-}

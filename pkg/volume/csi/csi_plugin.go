@@ -42,12 +42,14 @@ import (
 	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/kubelet/util/pluginwatcher"
 	"k8s.io/kubernetes/pkg/volume"
+	csiIdentity "k8s.io/kubernetes/pkg/volume/csi/identity"
 	"k8s.io/kubernetes/pkg/volume/csi/nodeinfomanager"
 )
 
 const (
-	// CSIPluginName is the name of the in-tree CSI Plugin
-	CSIPluginName = "kubernetes.io/csi"
+	// TODO (hoegaarden) should we use use csiIdentity.CSIPluginName everywhere
+	//                   instead of csi.CSIPluginName?
+	CSIPluginName = csiIdentity.CSIPluginName
 
 	// TODO (vladimirvivien) implement a more dynamic way to discover
 	// the unix domain socket path for each installed csi driver.
@@ -1001,20 +1003,8 @@ func isV1Version(version string) bool {
 	return parsedVersion.Major() == 1
 }
 
-// ToPluginHandler converts the generic volume plugin to a specific csiPlugin and
-// returns that as a PluginHandler. In case the generic plugin is not a CSI
-// plugin and thus not a PluginHandler, an error is returned.
-//
-// The main use-case for this is the kubelet when registering the CSI plugin as
-// a plugin handler: It can discover the CSI plugin by name, but only has
-// access to it as a generic `volume.VolumePlugin`. To convert that to a
-// `pluginwatcher.PluginHandler` without the need to export the `csi.csiPlugin`
-// (to do the type assertion) the kubelet can use this function.
-func ToPluginHandler(genericPlugin volume.VolumePlugin) (pluginwatcher.PluginHandler, error) {
-	csiPlugin, ok := genericPlugin.(*csiPlugin)
-	if !ok {
-		return nil, errors.New("volume plugin is not a CSI volume plugin")
-	}
-
-	return pluginwatcher.PluginHandler(csiPlugin), nil
+func (p *csiPlugin) GetWatcherHandler() pluginwatcher.PluginHandler {
+	return pluginwatcher.PluginHandler(p)
 }
+
+var _ volume.KubeletWatchableVolumePlugin = &csiPlugin{}
