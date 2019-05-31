@@ -36,6 +36,7 @@ import (
 
 	"github.com/PuerkitoBio/purell"
 	"github.com/blang/semver"
+	"github.com/pbnjay/memory"
 	"github.com/pkg/errors"
 	netutil "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -872,6 +873,26 @@ func (ncc NumCPUCheck) Check() (warnings, errorList []error) {
 	return warnings, errorList
 }
 
+// MemoryCheck checks total system memory to ensure it meets requirements.
+type MemoryCheck struct {
+	// Minimum is the minimum memory (in megabytes) required to pass the check.
+	Minimum uint64
+}
+
+// Name returns the label for this check.
+func (MemoryCheck) Name() string {
+	return "Memory"
+}
+
+// Check validates the total system memory.
+func (mc MemoryCheck) Check() (warnings, errorList []error) {
+	actual := memory.TotalMemory() / 1024 / 1024 // TotalMemory returns bytes; convert to MB
+	if actual < mc.Minimum {
+		errorList = append(errorList, errors.Errorf("the system RAM (%d MB) is less than the minimum %d MB", actual, mc.Minimum))
+	}
+	return warnings, errorList
+}
+
 // IPVSProxierCheck tests if IPVS proxier can be used.
 type IPVSProxierCheck struct {
 	exec utilsexec.Interface
@@ -897,6 +918,7 @@ func RunInitNodeChecks(execer utilsexec.Interface, cfg *kubeadmapi.InitConfigura
 	manifestsDir := filepath.Join(kubeadmconstants.KubernetesDir, kubeadmconstants.ManifestsSubDirName)
 	checks := []Checker{
 		NumCPUCheck{NumCPU: kubeadmconstants.ControlPlaneNumCPU},
+		MemoryCheck{Minimum: kubeadmconstants.ControlPlaneMemoryMinimum},
 		KubernetesVersionCheck{KubernetesVersion: cfg.KubernetesVersion, KubeadmVersion: kubeadmversion.Get().GitVersion},
 		FirewalldCheck{ports: []int{int(cfg.LocalAPIEndpoint.BindPort), ports.KubeletPort}},
 		PortOpenCheck{port: int(cfg.LocalAPIEndpoint.BindPort)},

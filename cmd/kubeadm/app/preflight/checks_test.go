@@ -816,3 +816,24 @@ func TestNumCPUCheck(t *testing.T) {
 		})
 	}
 }
+
+func TestMemoryCheck(t *testing.T) {
+	var tests = []struct {
+		minimum        uint64
+		expectedErrors int
+	}{
+		{0, 0},
+		{9999999999999999, 1},
+	}
+
+	for _, rt := range tests {
+		t.Run(fmt.Sprintf("MemoryCheck{%d}", rt.minimum), func(t *testing.T) {
+			warnings, errors := MemoryCheck{Minimum: rt.minimum}.Check()
+			if len(warnings) > 0 {
+				t.Errorf("expected 0 warnings but got %d: %q", len(warnings), warnings)
+			} else if len(errors) != rt.expectedErrors {
+				t.Errorf("expected %d error(s) but got %d: %q", rt.expectedErrors, len(errors), errors)
+			}
+		})
+	}
+}

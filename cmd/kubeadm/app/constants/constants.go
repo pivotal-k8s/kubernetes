@@ -352,6 +352,9 @@ const (
 	// ControlPlaneNumCPU is the number of CPUs required on control-plane
 	ControlPlaneNumCPU = 2
 
+	// ControlPlaneMemoryMinimum is the number of megabytes of memory required on the control-plane
+	ControlPlaneMemoryMinimum = 2 * 1024
+
 	// KubeadmCertsSecret specifies in what Secret in the kube-system namespace the certificates should be stored
 	KubeadmCertsSecret = "kubeadm-certs"
 )
