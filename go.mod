@@ -119,6 +119,7 @@ require (
 	github.com/opencontainers/runc v0.0.0-20181113202123-f000fe11ece1
 	github.com/opencontainers/runtime-spec v1.0.0 // indirect
 	github.com/opencontainers/selinux v0.0.0-20170621221121-4a2974bf1ee9
+	github.com/pbnjay/memory v0.0.0-20190104145345-974d429e7ae4
 	github.com/pborman/uuid v1.2.0
 	github.com/pelletier/go-toml v1.2.0 // indirect
 	github.com/pkg/errors v0.8.0
@@ -352,6 +353,7 @@ replace (
 	github.com/opencontainers/runc => github.com/opencontainers/runc v0.0.0-20181113202123-f000fe11ece1
 	github.com/opencontainers/runtime-spec => github.com/opencontainers/runtime-spec v1.0.0
 	github.com/opencontainers/selinux => github.com/opencontainers/selinux v0.0.0-20170621221121-4a2974bf1ee9
+	github.com/pbnjay/memory => github.com/pbnjay/memory v0.0.0-20190104145345-974d429e7ae4
 	github.com/pborman/uuid => github.com/pborman/uuid v1.2.0
 	github.com/pelletier/go-toml => github.com/pelletier/go-toml v1.2.0
 	github.com/peterbourgon/diskv => github.com/peterbourgon/diskv v2.0.1+incompatible

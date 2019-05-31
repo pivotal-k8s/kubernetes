@@ -692,6 +692,8 @@ github.com/opencontainers/runtime-spec/specs-go
 # github.com/opencontainers/selinux v0.0.0-20170621221121-4a2974bf1ee9 => github.com/opencontainers/selinux v0.0.0-20170621221121-4a2974bf1ee9
 github.com/opencontainers/selinux/go-selinux
 github.com/opencontainers/selinux/go-selinux/label
+# github.com/pbnjay/memory v0.0.0-20190104145345-974d429e7ae4 => github.com/pbnjay/memory v0.0.0-20190104145345-974d429e7ae4
+github.com/pbnjay/memory
 # github.com/pborman/uuid v1.2.0 => github.com/pborman/uuid v1.2.0
 github.com/pborman/uuid
 # github.com/pelletier/go-toml v1.2.0 => github.com/pelletier/go-toml v1.2.0
